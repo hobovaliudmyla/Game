@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо вибору</title>
+<style>
+  :root{--bg:#00574a;--cream:#fdf8ef;--teal:#028371;--ink:#333}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--cream);
+    font-family:'DM Sans','Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif}
+  main{max-width:1080px;margin:0 auto;padding:56px 24px 48px;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+  h1{margin:0;font-weight:800;font-size:clamp(46px,8vw,92px);line-height:.98;letter-spacing:-.04em}
+  .sub{margin:14px 0 22px;font-size:clamp(17px,2.2vw,22px)}
+  .panel{background:var(--cream);color:var(--ink);border-radius:20px;padding:20px}
+  form{display:flex;gap:8px}
+  input[type=text]{flex:1;min-width:0;border:1.5px solid #e4dccd;border-radius:999px;padding:10px 16px;font:inherit;font-size:16px;color:var(--ink);background:#fff;outline:none}
+  input[type=text]:focus{border-color:var(--teal)}
+  button{font:inherit;cursor:pointer;border:0}
+  .btn{background:var(--teal);color:#fff;border-radius:999px;padding:10px 20px;font-weight:700}
+  .btn.ghost{background:transparent;color:var(--teal);border:1.5px solid var(--teal);font-weight:600;font-size:14px;padding:8px 14px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 8px 5px 12px;border-radius:999px;color:#fff;font-size:14px;font-weight:600;animation:pop .2s ease-out}
+  .chip.used{opacity:.45;text-decoration:line-through}
+  .chip button{background:none;color:inherit;font-size:18px;line-height:1;padding:0 2px}
+  .chip button:hover{opacity:.7}
+  @keyframes pop{from{transform:scale(.8);opacity:0}to{transform:scale(1)}}
+  .opts{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;margin-top:12px;font-size:14px}
+  .opts label{display:flex;gap:8px;align-items:center;cursor:pointer}
+  .opts input{accent-color:var(--teal);width:18px;height:18px}
+  .right{display:flex;flex-direction:column;align-items:center;gap:26px}
+  .wheelbox{position:relative;width:min(440px,86vw);height:min(440px,86vw)}
+  .pointer{position:absolute;top:-20px;left:50%;transform:translateX(-50%);z-index:2;width:0;height:0;
+    border-left:13px solid transparent;border-right:13px solid transparent;border-top:20px solid #fff;filter:drop-shadow(0 2px 3px rgba(0,0,0,.3))}
+  canvas{width:100%;height:100%;border-radius:50%;display:block;box-shadow:0 10px 36px rgba(0,0,0,.28)}
+  #spin{background:var(--cream);color:var(--teal);font-size:22px;font-weight:800;border-radius:999px;padding:12px 44px;box-shadow:0 6px 18px rgba(0,0,0,.25);transition:transform .15s}
+  #spin:hover:not(:disabled){transform:scale(1.05)}
+  #spin:active:not(:disabled){transform:scale(.96)}
+  #spin:disabled{opacity:.5;cursor:default}
+  .result{position:relative;overflow:hidden;width:100%;max-width:440px;min-height:150px;text-align:center;padding:22px 20px;border-radius:20px;
+    background:rgba(255,255,255,.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .result .lab{margin:0;font-size:16px;opacity:.8}
+  .result .val{margin:0;font-size:clamp(24px,3.6vw,32px);font-weight:800;line-height:1.2}
+  .result.show .val{animation:reveal .5s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes reveal{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+  #pass{display:none;background:transparent;color:var(--cream);border:1.5px solid rgba(253,248,239,.6);border-radius:999px;padding:7px 16px;font-size:14px;font-weight:600}
+  #pass:hover{background:rgba(255,255,255,.12)}
+  .dot{position:absolute;left:50%;top:50%;border-radius:50%;animation:burst 1.3s ease-out forwards}
+  @keyframes burst{to{transform:translate(var(--tx),var(--ty));opacity:0}}
+  @media(max-width:820px){main{grid-template-columns:1fr;gap:34px;padding-top:40px}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1>Колесо вибору</h1>
+    <p class="sub">Крути колесо: воно обирає не людину, а завдання.</p>
+    <div class="panel">
+      <form id="addForm"><input id="newItem" type="text" maxlength="80" placeholder="Додати своє завдання…" aria-label="Нове завдання"><button class="btn" type="submit">Додати</button></form>
+      <div class="chips" id="chips"></div>
+      <div class="opts">
+        <label><input type="checkbox" id="noRepeat" checked> Не повторювати завдання, що вже випали</label>
+        <span style="display:flex;gap:8px"><button class="btn ghost" id="reset" type="button">Завдання заняття</button><button class="btn ghost" id="clear" type="button">Очистити</button></span>
+      </div>
+    </div>
+  </section>
+  <section class="right">
+    <div class="wheelbox"><div class="pointer"></div><canvas id="wheel" width="880" height="880" aria-label="Колесо із завданнями"></canvas></div>
+    <button id="spin" type="button">Крутити!</button>
+    <div class="result" id="result" aria-live="polite">
+      <p class="lab" id="lab">Натисни «Крутити!»</p>
+      <p class="val" id="val"></p>
+      <button id="pass" type="button">Пас: крутити ще раз</button>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+  var PALETTE=['#4a7ec4','#e8837f','#9a9520','#a33d28','#d4a810','#d06a9a','#e67e22','#9a93c4','#5f8f3a'];
+  var DEFAULTS=[
+    ['Подякуй комусь','Подякуй комусь у класі'],
+    ['Сильна сторона','Назви свою сильну сторону'],
+    ['Що заспокоює','Що допомагає тобі заспокоїтись?'],
+    ['Комплімент вчинку','Подаруй комплімент вчинку, а не зовнішності'],
+    ['Друга спроба','Згадай, що вийшло з другої спроби'],
+    ['Чого навчитись','Чого б ти хотів навчитись?'],
+    ['Потрібна допомога','Скажи: «Мені потрібна допомога з…»'],
+    ['Вільний вибір','Вільний вибір: поділись тим, чим хочеш']
+  ];
+  var items=[],rot=0,spinning=false;
+  var canvas=document.getElementById('wheel'),ctx=canvas.getContext('2d');
+  var chipsEl=document.getElementById('chips'),spinBtn=document.getElementById('spin'),passBtn=document.getElementById('pass');
+  var resultEl=document.getElementById('result'),lab=document.getElementById('lab'),val=document.getElementById('val');
+  var noRepeat=document.getElementById('noRepeat');
+
+  function load(){items=DEFAULTS.map(function(d){return{label:d[0],text:d[1],used:false}});}
+  function color(i){return PALETTE[i%PALETTE.length];}
+  function isLight(hex){var n=parseInt(hex.slice(1),16),r=n>>16,g=n>>8&255,b=n&255;return (0.299*r+0.587*g+0.114*b)>165;}
+
+  function wrap(text,size,maxW){
+    ctx.font='700 '+size+'px "DM Sans","Segoe UI",system-ui,Arial,sans-serif';
+    var words=text.split(/\s+/),lines=[],cur='';
+    words.forEach(function(w){
+      var t=cur?cur+' '+w:w;
+      if(ctx.measureText(t).width<=maxW||!cur){cur=t;}else{lines.push(cur);cur=w;}
+    });
+    if(cur)lines.push(cur);
+    return lines;
+  }
+  function fit(text,segArc,maxW){
+    for(var s=38;s>=18;s-=2){
+      var lines=wrap(text,s,maxW);
+      var ok=lines.length<=3&&lines.every(function(l){return ctx.measureText(l).width<=maxW});
+      if(ok&&lines.length*s*1.12<=segArc)return{size:s,lines:lines};
+    }
+    var s2=18,l=wrap(text,s2,maxW).slice(0,2);
+    var last=l[l.length-1];
+    while(ctx.measureText(last+'…').width>maxW&&last.length>1)last=last.slice(0,-1);
+    l[l.length-1]=last+'…';
+    return{size:s2,lines:l};
+  }
+
+  function draw(){
+    var W=canvas.width,cx=W/2,cy=W/2,r=W/2-8;
+    ctx.clearRect(0,0,W,W);
+    var n=items.length;
+    if(!n){
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle='rgba(253,248,239,.14)';ctx.fill();
+      ctx.fillStyle='#fdf8ef';ctx.font='700 34px "DM Sans","Segoe UI",Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('Додай завдання',cx,cy);return;
+    }
+    var seg=Math.PI*2/n;
+    items.forEach(function(it,i){
+      var a0=i*seg,a1=a0+seg,c=color(i);
+      ctx.save();ctx.globalAlpha=it.used?0.38:1;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a0,a1);ctx.closePath();
+      ctx.fillStyle=c;ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=4;ctx.stroke();
+      ctx.translate(cx,cy);ctx.rotate(a0+seg/2);
+      var segArc=2*0.6*r*Math.sin(seg/2)*0.82;
+      var f=fit(it.label,segArc,r*0.62);
+      ctx.font='700 '+f.size+'px "DM Sans","Segoe UI",system-ui,Arial,sans-serif';
+      ctx.textAlign='right';ctx.textBaseline='middle';
+      ctx.fillStyle=isLight(c)?'#2b2410':'#fff';
+      var lh=f.size*1.12,y0=-(f.lines.length-1)*lh/2;
+      f.lines.forEach(function(l,k){ctx.fillText(l,r-26,y0+k*lh);});
+      ctx.restore();
+    });
+    ctx.beginPath();ctx.arc(cx,cy,r*0.1,0,Math.PI*2);ctx.fillStyle='#fdf8ef';ctx.fill();
+    ctx.lineWidth=6;ctx.strokeStyle='#028371';ctx.stroke();
+  }
+
+  function renderChips(){
+    chipsEl.innerHTML='';
+    items.forEach(function(it,i){
+      var chip=document.createElement('span');
+      chip.className='chip'+(it.used?' used':'');
+      chip.style.background=color(i);
+      if(isLight(color(i)))chip.style.color='#2b2410';
+      chip.title=it.text;
+      var t=document.createElement('span');t.textContent=it.label;
+      var b=document.createElement('button');b.type='button';b.textContent='×';b.setAttribute('aria-label','Видалити: '+it.label);
+      b.onclick=function(){items.splice(i,1);refresh();};
+      chip.appendChild(t);chip.appendChild(b);chipsEl.appendChild(chip);
+    });
+  }
+  function refresh(){renderChips();draw();spinBtn.disabled=items.length<2||spinning;passBtn.disabled=spinBtn.disabled;}
+
+  document.getElementById('addForm').addEventListener('submit',function(e){
+    e.preventDefault();
+    var inp=document.getElementById('newItem'),v=inp.value.trim();
+    if(v&&items.length<16){items.push({label:v,text:v,used:false});inp.value='';refresh();}
+  });
+  document.getElementById('clear').onclick=function(){if(spinning)return;items=[];resetResult();refresh();};
+  document.getElementById('reset').onclick=function(){if(spinning)return;load();resetResult();refresh();};
+  function resetResult(){lab.textContent='Натисни «Крутити!»';val.textContent='';passBtn.style.display='none';resultEl.classList.remove('show');}
+
+  function confetti(){
+    for(var i=0;i<34;i++){
+      var d=document.createElement('div'),a=Math.random()*Math.PI*2,dist=70+Math.random()*120,s=5+Math.random()*8;
+      d.className='dot';d.style.background=color(Math.floor(Math.random()*PALETTE.length));
+      d.style.width=d.style.height=s+'px';
+      d.style.setProperty('--tx',Math.cos(a)*dist+'px');d.style.setProperty('--ty',Math.sin(a)*dist+'px');
+      d.style.animationDelay=Math.random()*0.1+'s';
+      resultEl.appendChild(d);(function(el){setTimeout(function(){el.remove()},1700)})(d);
+    }
+  }
+
+  function spin(){
+    if(spinning||items.length<2)return;
+    var pool=[];
+    items.forEach(function(it,i){if(!noRepeat.checked||!it.used)pool.push(i);});
+    var note='';
+    if(!pool.length){items.forEach(function(it){it.used=false});pool=items.map(function(_,i){return i});note='Усі завдання вже випали, починаємо коло знову.';renderChips();draw();}
+    var target=pool[Math.floor(Math.random()*pool.length)];
+    var n=items.length,seg=360/n;
+    var ang=target*seg+seg/2+(Math.random()-0.5)*seg*0.6;
+    var cur=((rot%360)+360)%360;
+    var delta=((270-ang-cur)%360+360)%360+360*(5+Math.floor(Math.random()*3));
+    var start=rot,dur=4200,t0=null;
+    spinning=true;spinBtn.disabled=true;passBtn.disabled=true;
+    lab.textContent='Крутимо…';val.textContent='';resultEl.classList.remove('show');
+    function frame(ts){
+      if(t0===null)t0=ts;
+      var p=Math.min(1,(ts-t0)/dur),e=1-Math.pow(1-p,4);
+      canvas.style.transform='rotate('+(start+delta*e)+'deg)';
+      if(p<1){requestAnimationFrame(frame);}else{
+        rot=start+delta;spinning=false;
+        items[target].used=true;
+        lab.textContent=note||'Завдання:';
+        val.textContent=items[target].text;
+        resultEl.classList.add('show');passBtn.style.display='inline-block';
+        refresh();confetti();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  spinBtn.onclick=spin;passBtn.onclick=spin;
+  load();refresh();
+})();
+</script>
+</body>
+</html>
